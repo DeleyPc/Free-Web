@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Invincible Order</title>
+
+<style>
+body{
+    margin:0;
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:radial-gradient(circle at top,#0a0a0a,#020202);
+    font-family:Segoe UI,Arial;
+    color:#fff;
+    overflow:hidden;
+}
+
+/* CANVAS */
+canvas{
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    z-index:0;
+}
+
+/* CARD */
+.card{
+    position:relative;
+    z-index:1;
+    width:400px;
+    padding:25px;
+    border-radius:18px;
+    background:rgba(15,15,15,0.75);
+    backdrop-filter:blur(15px);
+    border:1px solid rgba(255,255,255,0.05);
+    box-shadow:0 20px 60px rgba(0,0,0,0.9);
+    animation:fadeIn 0.6s ease;
+    transition:0.3s;
+}
+
+.card:hover{
+    transform:translateY(-6px) scale(1.01);
+}
+
+/* LED BORDER */
+.card::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    border-radius:18px;
+    padding:1px;
+    background:linear-gradient(120deg,#4c8dff,#00ffe7,#4c8dff);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;
+    animation:rotate 6s linear infinite;
+
+    pointer-events:none; /* 🔥 FIX QUAN TRỌNG */
+}
+
+@keyframes rotate{
+    100%{filter:hue-rotate(360deg);}
+}
+
+/* TITLE */
+.title{
+    text-align:center;
+    font-size:20px;
+    margin-bottom:15px;
+}
+
+/* INPUT */
+.group{ margin-bottom:14px; }
+
+label{
+    font-size:12px;
+    color:#aaa;
+}
+
+input, textarea{
+    width:100%;
+    margin-top:5px;
+    padding:10px;
+    border-radius:8px;
+    border:1px solid #2a2a2a;
+    background:#0f0f0f;
+    color:#fff;
+    transition:0.25s;
+}
+
+input:hover, textarea:hover{
+    border-color:#4c8dff;
+}
+
+input:focus, textarea:focus{
+    border-color:#4c8dff;
+    box-shadow:0 0 12px rgba(76,141,255,0.6);
+    transform:scale(1.02);
+}
+
+/* BUTTON */
+button{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:10px;
+    background:linear-gradient(135deg,#4c8dff,#00ffe7);
+    color:#000;
+    font-weight:bold;
+    cursor:pointer;
+    transition:0.25s;
+    position:relative;
+    overflow:hidden;
+}
+
+button:hover{
+    transform:scale(1.06);
+    box-shadow:0 0 25px rgba(0,255,231,0.6);
+}
+
+button:active{
+    transform:scale(0.95);
+}
+
+/* SHINE */
+button::after{
+    content:"";
+    position:absolute;
+    top:0;
+    left:-100%;
+    width:100%;
+    height:100%;
+    background:linear-gradient(120deg,transparent,rgba(255,255,255,0.5),transparent);
+    transition:0.5s;
+}
+
+button:hover::after{
+    left:100%;
+}
+
+/* LOADER */
+.loader{
+    display:none;
+    text-align:center;
+    margin-top:10px;
+}
+
+/* TOAST */
+#toast{
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.toast{
+    min-width:250px;
+    padding:12px 15px;
+    background:#1e1e1e;
+    border-left:4px solid #4c8dff;
+    border-radius:6px;
+    animation:slideIn 0.4s forwards;
+}
+
+.toast.success{ border-color:#4caf50; }
+.toast.error{ border-color:#f44336; }
+
+@keyframes slideIn{
+    from{transform:translateX(120%);}
+    to{transform:translateX(0);}
+}
+
+@keyframes slideOut{
+    to{transform:translateX(120%); opacity:0;}
+}
+
+@keyframes fadeIn{
+    from{opacity:0; transform:translateY(20px);}
+    to{opacity:1;}
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="snow"></canvas>
+<div id="toast"></div>
+
+<div class="card">
+    <div class="title">❄️ Invincible Order</div>
+
+    <div class="group">
+        <label>Tên khách</label>
+        <input id="name">
+    </div>
+
+    <div class="group">
+        <label>Dịch vụ</label>
+        <input id="service">
+    </div>
+
+    <div class="group">
+        <label>Mô tả</label>
+        <textarea id="desc"></textarea>
+    </div>
+
+    <div class="group">
+        <label>Giá</label>
+        <input id="price">
+    </div>
+
+    <div class="group">
+        <label>Bảo hành</label>
+        <input id="warranty">
+    </div>
+
+    <div class="group">
+        <label>Ảnh</label>
+        <input id="image">
+    </div>
+
+    <button onclick="send()">Gửi đơn</button>
+    <div class="loader" id="loader">Đang gửi...</div>
+</div>
+
+<script>
+// TOAST
+function showToast(msg,type="success"){
+    const box = document.getElementById("toast");
+    const el = document.createElement("div");
+    el.className = "toast " + type;
+    el.innerText = msg;
+    box.appendChild(el);
+
+    setTimeout(()=>{
+        el.style.animation="slideOut 0.4s forwards";
+        setTimeout(()=>el.remove(),400);
+    },3000);
+}
+
+// SNOW
+const canvas = document.getElementById("snow");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let snow=[];
+for(let i=0;i<120;i++){
+    snow.push({
+        x:Math.random()*canvas.width,
+        y:Math.random()*canvas.height,
+        r:Math.random()*3,
+        d:Math.random()*1
+    });
+}
+
+function drawSnow(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="white";
+
+    snow.forEach(f=>{
+        ctx.beginPath();
+        ctx.arc(f.x,f.y,f.r,0,Math.PI*2);
+        ctx.fill();
+
+        f.y += f.d+0.5;
+        f.x += Math.sin(f.y*0.01);
+
+        if(f.y > canvas.height){
+            f.y = 0;
+            f.x = Math.random()*canvas.width;
+        }
+    });
+}
+
+setInterval(drawSnow,30);
+
+// DISCORD (GIỮ NGUYÊN)
+function randomID(){
+    return "INV-" + Math.floor(100000 + Math.random()*900000);
+}
+
+function now(){
+    return new Date().toLocaleString();
+}
+
+function send(){
+
+    const name = document.getElementById("name").value.trim();
+    const service = document.getElementById("service").value.trim();
+
+    if(!name || !service){
+        showToast("Thiếu thông tin","error");
+        return;
+    }
+
+    document.getElementById("loader").style.display="block";
+
+    const webhook = "https://discord.com/api/webhooks/1498908178212065384/8mNXiSuFhfIH95xmR41z7qzTBV_TcQQD5GDMKOHeYhEdBCkXCCRpDXpCULagzE2KAQMq";
+
+    const data = {
+        content: "📦 Đơn hàng mới",
+        embeds: [{
+            title: "INVINCIBLE ORDER",
+            color: 5793266,
+            thumbnail:{
+                url: document.getElementById("image").value || "https://i.imgur.com/4M34hi2.png"
+            },
+            fields:[
+                {name:"🆔 Mã đơn", value: randomID(), inline:true},
+                {name:"👤 Khách", value: name, inline:true},
+                {name:"💰 Giá Tiền", value: document.getElementById("price").value || "0", inline:true},
+                {name:"📦 Dịch vụ", value: service},
+                {name:"📄 Mô tả", value: document.getElementById("desc").value || "None"},
+                {name:"⏳ Bảo hành", value: document.getElementById("warranty").value || "None", inline:true},
+                {name:"📅 Thời Gian mua", value: now(), inline:true}
+            ],
+            footer:{ text:"Invincible System" },
+            timestamp:new Date()
+        }]
+    };
+
+   fetch("https://discord.com/api/webhooks/1498908178212065384/8mNXiSuFhfIH95xmR41z7qzTBV_TcQQD5GDMKOHeYhEdBCkXCCRpDXpCULagzE2KAQMq",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(data)
+    })
+    .then(()=>{
+        document.getElementById("loader").style.display="none";
+        showToast("Gửi thành công","success");
+    })
+    .catch(()=>{
+        document.getElementById("loader").style.display="none";
+        showToast("Lỗi webhook","error");
+    });
+}
+</script>
+
+</body>
+</html>
